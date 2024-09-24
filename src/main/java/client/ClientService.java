@@ -15,7 +15,7 @@ public class ClientService {
 
 
     public String getById(long id) {
-        String selectQ = "SELECT * FROM CLIENT WHERE client_id = ?";
+        String selectQ = "SELECT * FROM CLIENTS WHERE client_id = ?";
         Client client = new Client();
 
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
@@ -40,7 +40,7 @@ public class ClientService {
 
     public long addClient(String name) {
         long genId = 0;
-        String insertQ = "INSERT INTO CLIENT (name) VALUES(?)";
+        String insertQ = "INSERT INTO CLIENTS (name) VALUES(?)";
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             PreparedStatement preparedStatement = connection.prepareStatement(insertQ, Statement.RETURN_GENERATED_KEYS);
             preparedStatement.setString(1, name);
@@ -62,7 +62,7 @@ public class ClientService {
     }
 
     public void setName(long id, String name) {
-        String changeNameQ = "Update CLIENT SET name = ? WHERE client_id = ?";
+        String changeNameQ = "Update CLIENTS SET name = ? WHERE client_id = ?";
 
         String changeNameQ1 = changeNameQ;
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
@@ -80,7 +80,7 @@ public class ClientService {
     }
 
     public List<Client> getAllClients() {
-        String getAllQ = "SELECT * FROM CLIENT";
+        String getAllQ = "SELECT * FROM CLIENTS";
         List<Client> result = new ArrayList<>();
 
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
@@ -102,6 +102,64 @@ public class ClientService {
         }
 
         return result;
+
+    }
+
+    public void deleteById(long id) {
+        String deleteFromClientById = "Delete From CLIENTS WHERE CLIENT_ID = "+id;
+        String deleteFromProjectById = "Delete From Project WHERE CLIENT_ID ="+id;
+        String deleteFromProjectWorker = "Delete From PROJECT_WORKER WHERE project_id in (SELECT project_id FROM PROJECT WHERE CLIENT_ID ="+id+")";
+
+        if (checkIfClientHasProject(id)) {
+
+            try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+                connection.setAutoCommit(false);
+                try {
+                    Statement statement = connection.createStatement();
+                    statement.addBatch(deleteFromProjectWorker);
+                    statement.addBatch(deleteFromProjectById);
+                    statement.addBatch(deleteFromClientById);
+
+                    statement.executeBatch();
+                }catch (Exception ex){
+                    connection.rollback();
+                }
+                finally {
+                    connection.setAutoCommit(true);
+                }
+
+
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+
+        }else {
+            try(Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+                Statement statement = connection.createStatement();
+                statement.executeUpdate(deleteFromClientById);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+
+
+
+    }
+
+    private boolean checkIfClientHasProject(long id) {
+        String getRelatedProject = "Select * from PROJECT WHERE CLIENT_ID = ?";
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            PreparedStatement preparedStatement = connection.prepareStatement(getRelatedProject);
+            preparedStatement.setLong(1, id);
+            ResultSet resultSet = preparedStatement.executeQuery();
+            if (!resultSet.next()) {
+                return false;
+            }
+            return true;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
 
     }
 }
